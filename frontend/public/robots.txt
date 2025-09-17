@@ -1,0 +1,7 @@
+User-agent: *
+Disallow:
+
+Sitemap: /sitemap.xml 
+Host: https://www.example.com
+# Replace "www.example.com" with your actual domain name.
+# This robots.txt file allows all web crawlers to access all parts of the website.
