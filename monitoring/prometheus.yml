@@ -1,0 +1,25 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+rule_files:
+  - "alerts/resume_alert.rules"
+
+scrape_configs:
+  - job_name: 'resume-service'
+    static_configs:
+      - targets: ['resume-backend:8000']
+        labels:
+          service: resume-analyzer
+
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+        labels:
+          service: prometheus
+
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: ['alertmanager:9093'] 
+        

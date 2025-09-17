@@ -1,0 +1,97 @@
+{
+  "dashboard": {
+    "id": null,
+    "uid": "resume-dashboard",
+    "title": "Resume Analyzer Metrics",
+    "timezone": "browser",
+    "schemaVersion": 38,
+    "version": 1,
+    "refresh": "30s",
+    "panels": [
+      {
+        "type": "graph",
+        "title": "Resume Upload Error Rate",
+        "datasource": "Prometheus",
+        "targets": [
+          {
+            "expr": "rate(resume_upload_errors_total[5m]) / rate(resume_upload_requests_total[5m])",
+            "legendFormat": "Error Rate",
+            "refId": "A"
+          }
+        ],
+        "gridPos": { "x": 0, "y": 0, "w": 12, "h": 8 }
+      },
+      {
+        "type": "graph",
+        "title": "Resume Analysis Latency (95th Percentile)",
+        "datasource": "Prometheus",
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.95, sum(rate(resume_analysis_duration_seconds_bucket[5m])) by (le))",
+            "legendFormat": "Latency (s)",
+            "refId": "B"
+          }
+        ],
+        "gridPos": { "x": 12, "y": 0, "w": 12, "h": 8 }
+      },
+      {
+        "type": "graph",
+        "title": "Resume Upload Request Volume",
+        "datasource": "Prometheus",
+        "targets": [
+          {
+            "expr": "rate(resume_upload_requests_total[5m])",
+            "legendFormat": "Requests/sec",
+            "refId": "C"
+          }
+        ],
+        "gridPos": { "x": 0, "y": 8, "w": 12, "h": 8 }
+      },
+      {
+        "type": "graph",
+        "title": "PDF Export Failures",
+        "datasource": "Prometheus",
+        "targets": [
+          {
+            "expr": "increase(resume_pdf_export_errors_total[10m])",
+            "legendFormat": "Failures",
+            "refId": "D"
+          }
+        ],
+        "gridPos": { "x": 12, "y": 8, "w": 12, "h": 8 }
+      },
+      {
+        "type": "stat",
+        "title": "Resume Service Uptime",
+        "datasource": "Prometheus",
+        "targets": [
+          {
+            "expr": "up{job=\"resume-service\"}",
+            "refId": "E"
+          }
+        ],
+        "gridPos": { "x": 0, "y": 16, "w": 6, "h": 4 },
+        "options": {
+          "reduceOptions": {
+            "calcs": ["lastNotNull"],
+            "fields": "",
+            "values": false
+          },
+          "colorMode": "value",
+          "graphMode": "none",
+          "justifyMode": "center"
+        }
+      }
+    ],
+    "templating": {
+      "list": []
+    },
+    "annotations": {
+      "list": []
+    },
+    "time": {
+      "from": "now-6h",
+      "to": "now"
+    }
+  }
+} 
