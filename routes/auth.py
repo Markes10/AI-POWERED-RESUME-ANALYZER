@@ -7,13 +7,13 @@ from sqlalchemy.orm import Session
 from typing import List
 from datetime import timedelta
 
-from app.db.database import get_db
-from app.db.models import User
-from app.services.auth import (
+from db.database import get_db
+from db.models import User
+from services.auth import (
     verify_password, get_password_hash, create_access_token,
     get_current_user, allow_admin, ACCESS_TOKEN_EXPIRE_MINUTES
 )
-from app.schemas.auth import (
+from schemas.auth import (
     Token, UserCreate, UserUpdate, UserResponse,
     ChangePasswordRequest
 )
@@ -75,9 +75,26 @@ async def register_user(
             detail="Email already registered"
         )
     
+    # Get or create default tenant
+    from db.models import Tenant
+    tenant = db.query(Tenant).filter(Tenant.slug == "default").first()
+    if not tenant:
+        tenant = Tenant(
+            name="Default Company",
+            slug="default",
+            tier="free",
+            status="active",
+            settings={},
+            custom_limits={}
+        )
+        db.add(tenant)
+        db.commit()
+        db.refresh(tenant)
+    
     # Create new user
     hashed_password = get_password_hash(user_data.password)
     db_user = User(
+        tenant_id=tenant.id,
         username=user_data.username,
         email=user_data.email,
         password_hash=hashed_password,
@@ -172,7 +189,4 @@ async def delete_user(
     db.delete(user)
     db.commit()
     
-    return {"message": "User deleted successfully"}
-@router.post("/login")
-async def login(username: str, password: str):
-    return {"username": username, "status": "logged in"}
+    return {"message": "User deleted successfully"}

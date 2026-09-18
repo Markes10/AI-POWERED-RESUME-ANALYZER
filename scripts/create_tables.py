@@ -19,8 +19,8 @@ print('Using DATABASE_URL:', DATABASE_URL)
 engine = create_engine(DATABASE_URL)
 
 print('Importing models...')
-import app.db.models as models  # noqa: E402
-from app.db.database import Base
+import db.models as models  # noqa: E402
+from db.database import Base
 
 print('Creating tables... (this may fail if your MySQL user lacks privileges)')
 Base.metadata.create_all(bind=engine)

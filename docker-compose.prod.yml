@@ -1,24 +1,43 @@
 version: '3.8'
+
 services:
   fastapi-app:
     build: .
-    container_name: hr-ai-platform
+    container_name: hr-ai-platform-prod
     env_file:
       - .env
     ports:
       - "8000:8000"
     depends_on:
-      - mysql
-      - qdrant
+      mysql:
+        condition: service_healthy
+      qdrant:
+        condition: service_started
     environment:
       - DATABASE_URL=mysql+pymysql://${MYSQL_USER}:${MYSQL_PASSWORD}@mysql:3306/${MYSQL_DB}
       - QDRANT_HOST=qdrant
       - QDRANT_PORT=6333
+    volumes:
+      - ./uploads:/app/uploads
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 2G
+        reservations:
+          cpus: '1'
+          memory: 1G
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
 
   mysql:
     image: mysql:8.0
-    container_name: mysql-db
+    container_name: mysql-db-prod
     environment:
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
       MYSQL_USER: ${MYSQL_USER}
@@ -30,29 +49,55 @@ services:
       - mysql_data:/var/lib/mysql
       - ./db/schema.sql:/docker-entrypoint-initdb.d/schema.sql
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "${MYSQL_USER}", "-p${MYSQL_PASSWORD}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 1G
+    command: --default-authentication-plugin=mysql_native_password
 
   qdrant:
-    image: qdrant/qdrant
-    container_name: qdrant
+    image: qdrant/qdrant:latest
+    container_name: qdrant-vector-db-prod
     ports:
       - "6333:6333"
+      - "6334:6334"
     volumes:
       - qdrant_data:/qdrant/storage
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:6333/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
 
   nginx:
     image: nginx:alpine
-    container_name: nginx-proxy
+    container_name: nginx-proxy-prod
     ports:
       - "80:80"
       - "443:443"
     volumes:
-      - ./nginx.conf:/etc/nginx/nginx.conf
-      - ./ssl:/etc/nginx/ssl
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./ssl:/etc/nginx/ssl:ro
     depends_on:
       - fastapi-app
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "nginx", "-t"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
 
 volumes:
   mysql_data:
   qdrant_data:
+
+networks:
+  default:
+    name: hr-ai-prod-network

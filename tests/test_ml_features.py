@@ -50,9 +50,9 @@ def test_text_embedding():
     embedding2 = embed_text(text2)
     
     # Check embedding properties
-    assert isinstance(embedding1, np.ndarray)
-    assert isinstance(embedding2, np.ndarray)
-    assert embedding1.shape == embedding2.shape
+    assert isinstance(embedding1, list)
+    assert isinstance(embedding2, list)
+    assert len(embedding1) == len(embedding2)
     
     # Check similarity
     similarity = calculate_similarity(embedding1, embedding2)

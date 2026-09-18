@@ -9,10 +9,63 @@ export default defineConfig({
   server: {
     port: 8080,
     proxy: {
+      // Python FastAPI backend routes (port 8000)
       '/api': {
         target: 'http://localhost:8000',
         changeOrigin: true
-      }
+      },
+      '/resume': {
+        target: 'http://localhost:8000',
+        changeOrigin: true
+      },
+      '/auth': {
+        target: 'http://localhost:8000',
+        changeOrigin: true
+      },
+      '/interview': {
+        target: 'http://localhost:8000',
+        changeOrigin: true
+      },
+      '/onboarding': {
+        target: 'http://localhost:8000',
+        changeOrigin: true
+      },
+      '/performance': {
+        target: 'http://localhost:8000',
+        changeOrigin: true
+      },
+      '/compensation': {
+        target: 'http://localhost:8000',
+        changeOrigin: true
+      },
+      '/learning': {
+        target: 'http://localhost:8000',
+        changeOrigin: true
+      },
+      '/attendance': {
+        target: 'http://localhost:8000',
+        changeOrigin: true
+      },
+      '/diversity': {
+        target: 'http://localhost:8000',
+        changeOrigin: true
+      },
+      '/turnover': {
+        target: 'http://localhost:8000',
+        changeOrigin: true
+      },
+      '/ai': {
+        target: 'http://localhost:8000',
+        changeOrigin: true
+      },
+      '/admin': {
+        target: 'http://localhost:8000',
+        changeOrigin: true
+      },
+      '/ollama': {
+        target: 'http://localhost:8000',
+        changeOrigin: true
+      },
     },
     watch: {
       ignored: ['app/*', '.venv/*', '__pycache__/*', '*.pyc']

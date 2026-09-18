@@ -1,8 +1,8 @@
-from .typing import List, Dict, Any
+from typing import List, Dict, Any
 import numpy as np
-from .services.nlp_service import NLPService
-from .services.learning_service import LearningService
-from .sklearn.metrics.pairwise import cosine_similarity
+from .nlp_service import NLPService
+from .learning_service import LearningService
+from sklearn.metrics.pairwise import cosine_similarity
 
 class AIFeedbackService:
     """

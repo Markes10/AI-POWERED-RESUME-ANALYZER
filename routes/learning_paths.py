@@ -6,11 +6,13 @@ Provides endpoints for:
 - Graph-based queries (skills to learning paths)
 """
 
-from .fastapi import APIRouter
-from .pydantic import BaseModel
-from .typing import Dict, Any, List
+from fastapi import APIRouter
+from pydantic import BaseModel
+from typing import Dict, Any, List
 import datetime
 import random
+
+from services import graph_utils, recommender_utils
 
 router = APIRouter(prefix="/learning", tags=["AI Learning-Path Recommender"])
 

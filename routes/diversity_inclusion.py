@@ -5,10 +5,12 @@ Provides endpoints for analyzing workforce diversity,
 detecting bias, and generating reports.
 """
 
-from .fastapi import APIRouter
-from .typing import Dict, Any
+from fastapi import APIRouter
+from typing import Dict, Any
 import datetime
 import random
+
+from services import fairness_utils
 
 router = APIRouter(prefix="/dei", tags=["Diversity & Inclusion Analytics"])
 

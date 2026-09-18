@@ -1,8 +1,8 @@
 """
 Job service for handling job-related operations
 """
-from .typing import Dict, List, Optional
-from .db.database import DatabaseOperations
+from typing import Dict, List, Optional
+from db.database import DatabaseOperations
 
 class JobService(DatabaseOperations):
     def __init__(self):

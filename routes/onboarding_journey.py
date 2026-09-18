@@ -6,14 +6,13 @@ Provides endpoints for:
 - Workflow automation hooks
 """
 
-from .fastapi import APIRouter
-from .pydantic import BaseModel
-from .typing import Dict, Any, List
+from fastapi import APIRouter
+from pydantic import BaseModel
+from typing import Dict, Any, List
 import datetime
 import random
 
-# Stub: replace later with vLLM or LangChain integration
-from .services import vllm_client
+from services import vllm_client
 
 router = APIRouter(prefix="/onboarding", tags=["Onboarding Journey Generator"])
 

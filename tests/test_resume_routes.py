@@ -12,7 +12,7 @@ def test_upload_resume(client: TestClient, test_user):
         "resume_text": "Python developer with 5 years experience in Django and React"
     }
     
-    response = client.post("/resume/upload", json=resume_data, headers=headers)
+    response = client.post("/api/v1/resume/upload", json=resume_data, headers=headers)
     assert response.status_code == 200
     
     data = response.json()
@@ -29,10 +29,10 @@ def test_get_my_resumes(client: TestClient, test_user):
     resume_data = {
         "resume_text": "Python developer with 5 years experience in Django and React"
     }
-    client.post("/resume/upload", json=resume_data, headers=headers)
+    client.post("/api/v1/resume/upload", json=resume_data, headers=headers)
     
     # Get resumes
-    response = client.get("/resume/my-resumes", headers=headers)
+    response = client.get("/api/v1/resume/my-resumes", headers=headers)
     assert response.status_code == 200
     
     data = response.json()
@@ -48,11 +48,11 @@ def test_match_resume(client: TestClient, test_user):
     resume_data = {
         "resume_text": "Python developer with experience in Django, FastAPI, and React"
     }
-    resume_response = client.post("/resume/upload", json=resume_data, headers=headers)
+    resume_response = client.post("/api/v1/resume/upload", json=resume_data, headers=headers)
     resume_id = resume_response.json()["id"]
     
     # Test matching
-    response = client.post(f"/resume/{resume_id}/match?top_k=3", headers=headers)
+    response = client.post(f"/api/v1/resume/{resume_id}/match?top_k=3", headers=headers)
     assert response.status_code == 200
     
     data = response.json()
@@ -67,11 +67,11 @@ def test_delete_resume(client: TestClient, test_user):
     resume_data = {
         "resume_text": "Python developer with 5 years experience"
     }
-    resume_response = client.post("/resume/upload", json=resume_data, headers=headers)
+    resume_response = client.post("/api/v1/resume/upload", json=resume_data, headers=headers)
     resume_id = resume_response.json()["id"]
     
     # Delete the resume
-    response = client.delete(f"/resume/{resume_id}", headers=headers)
+    response = client.delete(f"/api/v1/resume/{resume_id}", headers=headers)
     assert response.status_code == 200
     
     data = response.json()
@@ -84,36 +84,36 @@ def test_upload_resume_unauthorized(client: TestClient):
         "resume_text": "Python developer"
     }
     
-    response = client.post("/resume/upload", json=resume_data)
+    response = client.post("/api/v1/resume/upload", json=resume_data)
     assert response.status_code == 401
 
 def test_get_resumes_unauthorized(client: TestClient):
     """Test getting resumes without authorization"""
-    response = client.get("/resume/my-resumes")
+    response = client.get("/api/v1/resume/my-resumes")
     assert response.status_code == 401
 
 def test_match_resume_unauthorized(client: TestClient):
     """Test resume matching without authorization"""
-    response = client.post("/resume/1/match")
+    response = client.post("/api/v1/resume/1/match")
     assert response.status_code == 401
 
 def test_delete_resume_unauthorized(client: TestClient):
     """Test deleting resume without authorization"""
-    response = client.delete("/resume/1")
+    response = client.delete("/api/v1/resume/1")
     assert response.status_code == 401
 
 def test_match_nonexistent_resume(client: TestClient, test_user):
     """Test matching a nonexistent resume"""
     headers = {"Authorization": f"Bearer {test_user['access_token']}"}
     
-    response = client.post("/resume/999999/match", headers=headers)
+    response = client.post("/api/v1/resume/999999/match", headers=headers)
     assert response.status_code == 404
 
 def test_delete_nonexistent_resume(client: TestClient, test_user):
     """Test deleting a nonexistent resume"""
     headers = {"Authorization": f"Bearer {test_user['access_token']}"}
     
-    response = client.delete("/resume/999999", headers=headers)
+    response = client.delete("/api/v1/resume/999999", headers=headers)
     assert response.status_code == 404
 
 def test_upload_empty_resume(client: TestClient, test_user):
@@ -123,7 +123,7 @@ def test_upload_empty_resume(client: TestClient, test_user):
         "resume_text": ""
     }
     
-    response = client.post("/resume/upload", json=resume_data, headers=headers)
+    response = client.post("/api/v1/resume/upload", json=resume_data, headers=headers)
     # Should handle empty text gracefully
     assert response.status_code in [200, 400]
 
@@ -136,11 +136,11 @@ def test_match_resume_top_k(client: TestClient, test_user, top_k):
     resume_data = {
         "resume_text": "Python developer with experience in Django and React"
     }
-    resume_response = client.post("/resume/upload", json=resume_data, headers=headers)
+    resume_response = client.post("/api/v1/resume/upload", json=resume_data, headers=headers)
     resume_id = resume_response.json()["id"]
     
     # Test matching with different top_k values
-    response = client.post(f"/resume/{resume_id}/match?top_k={top_k}", headers=headers)
+    response = client.post(f"/api/v1/resume/{resume_id}/match?top_k={top_k}", headers=headers)
     assert response.status_code == 200
     
     data = response.json()
@@ -154,7 +154,7 @@ def test_resume_upload_with_special_characters(client: TestClient, test_user):
         "resume_text": "Python/C++ developer with 5+ years of experience in AI & ML"
     }
     
-    response = client.post("/resume/upload", json=resume_data, headers=headers)
+    response = client.post("/api/v1/resume/upload", json=resume_data, headers=headers)
     assert response.status_code == 200
     
     data = response.json()

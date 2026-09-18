@@ -5,11 +5,11 @@ Provides endpoints for analyzing pay equity and detecting bias
 across gender, ethnicity, and other attributes.
 """
 
-from .fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends
 import random
 import datetime
-from .services.auth import allow_admin, get_current_user
-from .services import fairness_utils
+from services.auth import allow_admin, get_current_user
+from services import fairness_utils
 
 router = APIRouter(prefix="/compensation", tags=["Compensation Fairness Analyzer"])
 

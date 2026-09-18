@@ -82,42 +82,42 @@ interface Recommendation {
   updated_at: string;
 }
 
-const { 
-  data: learningPaths = [], 
-  isLoading: isLoadingPaths 
-} = useQuery({
-  queryKey: ['learningPaths'],
-  queryFn: getLearningPaths
-});
-
-const {
-  data: skillGaps = [],
-  isLoading: isLoadingSkills
-} = useQuery({
-  queryKey: ['skills'],
-  queryFn: getSkills
-});
-
-const {
-  data: recommendations = [],
-  isLoading: isLoadingRecommendations
-} = useQuery({
-  queryKey: ['recommendations'],
-  queryFn: getRecommendations
-});
-
-const {
-  data: achievements = [],
-  isLoading: isLoadingAchievements
-} = useQuery({
-  queryKey: ['achievements'],
-  queryFn: getAchievements
-});
-
 export default function LearningPaths() {
   const [selectedCategory, setSelectedCategory] = useState("all");
   const [selectedDifficulty, setSelectedDifficulty] = useState("all");
   const [searchTerm, setSearchTerm] = useState("");
+
+  const {
+    data: learningPaths = [],
+    isLoading: isLoadingPaths
+  } = useQuery({
+    queryKey: ['learningPaths'],
+    queryFn: getLearningPaths
+  });
+
+  const {
+    data: skillGaps = [],
+    isLoading: isLoadingSkills
+  } = useQuery({
+    queryKey: ['skills'],
+    queryFn: getSkills
+  });
+
+  const {
+    data: recommendations = [],
+    isLoading: isLoadingRecommendations
+  } = useQuery({
+    queryKey: ['recommendations'],
+    queryFn: getRecommendations
+  });
+
+  const {
+    data: achievements = [],
+    isLoading: isLoadingAchievements
+  } = useQuery({
+    queryKey: ['achievements'],
+    queryFn: getAchievements
+  });
 
   if (isLoadingPaths || isLoadingSkills || isLoadingRecommendations || isLoadingAchievements) {
     return (

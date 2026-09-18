@@ -1,12 +1,14 @@
 """
-LLM wrapper with support for OpenAI and a Gemini placeholder.
-The wrapper is intentionally minimal: it reads environment variables and
-calls OpenAI if `OPENAI_API_KEY` is set. If `GEMINI_API_KEY` is set the
-Gemini.call() function is a stub that raises NotImplementedError so that
-consumers know to implement their own Gemini integration.
+LLM wrapper with support for Ollama (primary), OpenAI and Gemini (fallbacks).
+
+Priority order:
+1. Ollama (local, free) — uses OLLAMA_ENDPOINT env var
+2. OpenAI — uses OPENAI_API_KEY env var
+3. Gemini — uses GEMINI_API_KEY + GEMINI_ENDPOINT env vars
 """
 import os
 import logging
+import asyncio
 from typing import Optional
 
 logger = logging.getLogger(__name__)
@@ -19,115 +21,127 @@ except Exception:
     openai = None
 
 
-def call_llm(prompt: str, model: Optional[str] = None, max_tokens: int = 256) -> str:
+def _is_ollama_available() -> bool:
+    """Quick synchronous check if Ollama endpoint is reachable."""
+    endpoint = os.getenv("OLLAMA_ENDPOINT", "http://localhost:11434/api")
+    base_url = endpoint.rstrip("/api").rstrip("/")
+    try:
+        import urllib.request
+        req = urllib.request.Request(f"{base_url}/api/tags", method="GET")
+        with urllib.request.urlopen(req, timeout=3) as resp:
+            return resp.getcode() == 200
+    except Exception:
+        return False
+
+
+def call_llm(prompt: str, model: Optional[str] = None, max_tokens: int = 512) -> str:
     """Call a configured LLM and return text response.
 
-    - If `OPENAI_API_KEY` set and openai package present, use that.
-    - If `GEMINI_API_KEY` set, raise NotImplementedError (stub for Gemini integration).
-    - Otherwise raise RuntimeError.
+    Priority:
+    1. Ollama (if OLLAMA_ENDPOINT is set and server is reachable)
+    2. OpenAI (if OPENAI_API_KEY is set)
+    3. Gemini (if GEMINI_API_KEY and GEMINI_ENDPOINT are set)
     """
-    # Gemini integration (HTTP/REST): requires GEMINI_API_KEY and GEMINI_ENDPOINT
-    gemini_key = os.getenv('GEMINI_API_KEY')
-    gemini_endpoint = os.getenv('GEMINI_ENDPOINT')
-    gemini_model = model or os.getenv('GEMINI_MODEL')
-    if gemini_key:
-        if not gemini_endpoint:
-            raise NotImplementedError('GEMINI_API_KEY is set but GEMINI_ENDPOINT is not. Set GEMINI_ENDPOINT to the Gemini/PaLM REST URL.')
 
-        payload = {
-            'model': gemini_model or 'gemini-pro',
-            'prompt': prompt,
-            'max_tokens': max_tokens,
-            'temperature': float(os.getenv('LLM_TEMPERATURE', '0.2'))
-        }
-        headers = {
-            'Authorization': f'Bearer {gemini_key}',
-            'Content-Type': 'application/json'
-        }
+    # -------------------------------------------------------
+    # 1. Try Ollama first (local, free, no API key required)
+    # -------------------------------------------------------
+    ollama_endpoint = os.getenv("OLLAMA_ENDPOINT", "http://localhost:11434/api")
+    ollama_model = model or os.getenv("OLLAMA_MODEL", "mistral")
 
-        # Try httpx -> requests -> urllib
-        resp_json = None
-        status = None
+    if ollama_endpoint:
         try:
             import httpx
-            r = httpx.post(gemini_endpoint, json=payload, headers=headers, timeout=30.0)
-            status = r.status_code
-            resp_json = r.json()
-        except Exception:
-            try:
-                import requests
-                r = requests.post(gemini_endpoint, json=payload, headers=headers, timeout=30)
-                status = r.status_code
-                resp_json = r.json()
-            except Exception:
-                # Last-resort stdlib
-                try:
-                    import urllib.request, json
-                    req = urllib.request.Request(gemini_endpoint, data=json.dumps(payload).encode('utf-8'), headers=headers)
-                    with urllib.request.urlopen(req, timeout=30) as res:
-                        status = res.getcode()
-                        resp_json = json.loads(res.read().decode('utf-8'))
-                except Exception as e:
-                    logger.exception('Failed to call Gemini endpoint')
-                    raise RuntimeError(f'Failed to call Gemini endpoint: {e}')
+            payload = {
+                "model": ollama_model,
+                "prompt": prompt,
+                "stream": False,
+                "options": {
+                    "num_predict": max_tokens,
+                    "temperature": float(os.getenv("LLM_TEMPERATURE", "0.2"))
+                }
+            }
+            timeout = float(os.getenv("OLLAMA_TIMEOUT", "60"))
+            with httpx.Client(timeout=timeout) as client:
+                resp = client.post(f"{ollama_endpoint}/generate", json=payload)
+                if resp.status_code == 200:
+                    data = resp.json()
+                    text = data.get("response", "").strip()
+                    if text:
+                        logger.info("LLM call succeeded via Ollama (%s)", ollama_model)
+                        return text
+        except Exception as e:
+            logger.debug("Ollama unavailable, trying next backend: %s", e)
 
-        if status is None or (status and status >= 400):
-            raise RuntimeError(f'Gemini API error: status={status} body={resp_json}')
-
-        # Robust parsing for potential Gemini/PaLM response shapes
+    # -------------------------------------------------------
+    # 2. Try OpenAI
+    # -------------------------------------------------------
+    if os.getenv("OPENAI_API_KEY") and _OPENAI_AVAILABLE:
         try:
-            data = resp_json
-            # common patterns: {'candidates': [...]}, {'output': ...}, {'text': '...'}, {'choices': [...]}
-            if isinstance(data, dict):
-                if 'candidates' in data and isinstance(data['candidates'], list):
-                    parts = []
-                    for c in data['candidates']:
-                        if isinstance(c, dict):
-                            # try common fields
-                            for key in ('content', 'text', 'message', 'output'):
-                                if key in c and c[key]:
-                                    v = c[key]
-                                    if isinstance(v, dict) and 'text' in v:
-                                        parts.append(v['text'])
-                                    else:
-                                        parts.append(str(v))
-                                    break
-                    return '\n'.join(parts).strip()
-
-                for key in ('text', 'output', 'response', 'content'):
-                    if key in data and data[key]:
-                        v = data[key]
-                        if isinstance(v, str):
-                            return v
-                        if isinstance(v, dict) and 'text' in v:
-                            return v['text']
-
-                if 'choices' in data and isinstance(data['choices'], list) and data['choices']:
-                    c0 = data['choices'][0]
-                    if isinstance(c0, dict):
-                        if 'message' in c0 and isinstance(c0['message'], dict) and 'content' in c0['message']:
-                            return c0['message']['content']
-                        if 'text' in c0:
-                            return c0['text']
-
-            # Fallback: stringify entire response
-            return str(resp_json)
-        except Exception:
-            logger.exception('Failed to parse Gemini response')
-            return str(resp_json)
-
-    if os.getenv('OPENAI_API_KEY') and _OPENAI_AVAILABLE:
-        try:
-            openai.api_key = os.getenv('OPENAI_API_KEY')
+            openai.api_key = os.getenv("OPENAI_API_KEY")
             resp = openai.ChatCompletion.create(
-                model=model or os.getenv('OPENAI_MODEL', 'gpt-4o-mini'),
+                model=model or os.getenv("OPENAI_MODEL", "gpt-4o-mini"),
                 messages=[{"role": "user", "content": prompt}],
                 max_tokens=max_tokens,
                 temperature=0.2,
             )
+            logger.info("LLM call succeeded via OpenAI")
             return resp.choices[0].message.content
         except Exception:
-            logger.exception('OpenAI call failed')
-            raise
+            logger.exception("OpenAI call failed")
 
-    raise RuntimeError('No LLM backend configured (set OPENAI_API_KEY or GEMINI_API_KEY).')
+    # -------------------------------------------------------
+    # 3. Try Gemini via REST API
+    # -------------------------------------------------------
+    gemini_key = os.getenv("GEMINI_API_KEY")
+    gemini_endpoint = os.getenv("GEMINI_ENDPOINT")
+    gemini_model = model or os.getenv("GEMINI_MODEL", "gemini-pro")
+
+    if gemini_key and gemini_endpoint:
+        payload = {
+            "model": gemini_model,
+            "prompt": prompt,
+            "max_tokens": max_tokens,
+            "temperature": float(os.getenv("LLM_TEMPERATURE", "0.2"))
+        }
+        headers = {
+            "Authorization": f"Bearer {gemini_key}",
+            "Content-Type": "application/json"
+        }
+        try:
+            import httpx
+            with httpx.Client(timeout=30.0) as client:
+                r = client.post(gemini_endpoint, json=payload, headers=headers)
+                if r.status_code < 400:
+                    data = r.json()
+                    # Parse common Gemini/PaLM response shapes
+                    if isinstance(data, dict):
+                        if "candidates" in data:
+                            for c in data["candidates"]:
+                                for key in ("content", "text", "message", "output"):
+                                    if key in c and c[key]:
+                                        v = c[key]
+                                        if isinstance(v, dict) and "text" in v:
+                                            return v["text"]
+                                        return str(v)
+                        for key in ("text", "output", "response", "content"):
+                            if key in data and data[key]:
+                                return str(data[key])
+                    logger.info("LLM call succeeded via Gemini")
+                    return str(data)
+        except Exception:
+            logger.exception("Gemini call failed")
+
+    raise RuntimeError(
+        "No LLM backend available. "
+        "Please either:\n"
+        "  1. Install Ollama (https://ollama.ai) and run: ollama serve && ollama pull mistral\n"
+        "  2. Set OPENAI_API_KEY in .env\n"
+        "  3. Set GEMINI_API_KEY + GEMINI_ENDPOINT in .env"
+    )
+
+
+async def call_llm_async(prompt: str, model: Optional[str] = None, max_tokens: int = 512) -> str:
+    """Async wrapper for call_llm. Tries Ollama first via httpx async."""
+    from services.llm_utils import generate as ollama_generate
+    return await ollama_generate(prompt, max_tokens=max_tokens, model=model)

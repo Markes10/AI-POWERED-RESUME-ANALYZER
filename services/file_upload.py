@@ -3,9 +3,9 @@ File upload utilities
 """
 import os
 import shutil
-from .pathlib import Path
-from .fastapi import UploadFile, HTTPException
-from .typing import List
+from pathlib import Path
+from fastapi import UploadFile, HTTPException
+from typing import List
 import magic
 
 # Configure upload paths

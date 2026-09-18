@@ -10,31 +10,30 @@ from typing import List
 
 # We avoid importing sentence-transformers at module import time.
 # Availability and actual model object are resolved lazily in _get_model().
-_SENTENCE_AVAILABLE = None
+_SENTENCE_AVAILABLE = False
 
 # Default to an embedding size used in the project
 VECTOR_SIZE = int(os.getenv("VECTOR_SIZE", "384"))
 
 _model = None
 
+
 def _get_model():
     """Lazy-load the sentence-transformers model to avoid import-time downloads."""
-    global _model
+    global _model, _SENTENCE_AVAILABLE
     if _model is not None:
         return _model
     # Determine availability when first requested
-    global _SENTENCE_AVAILABLE
-    if _SENTENCE_AVAILABLE is None:
+    if not _SENTENCE_AVAILABLE:
         try:
-            from .sentence_transformers import SentenceTransformer  # type: ignore
+            from sentence_transformers import SentenceTransformer  # type: ignore
             _SENTENCE_AVAILABLE = True
         except Exception:
             _SENTENCE_AVAILABLE = False
     if not _SENTENCE_AVAILABLE:
         return None
     MODEL_NAME = os.getenv("EMBEDDING_MODEL", "sentence-transformers/all-MiniLM-L6-v2")
-    # Import and instantiate on demand
-    from .sentence_transformers import SentenceTransformer  # type: ignore
+    from sentence_transformers import SentenceTransformer  # type: ignore
     _model = SentenceTransformer(MODEL_NAME)
     return _model
 
@@ -63,12 +62,10 @@ def embed_text(text: str) -> List[float]:
     """Generate an embedding for a single text string."""
     if not text or not text.strip():
         return []
-    if _SENTENCE_AVAILABLE:
-        model = _get_model()
-        if model is None:
-            return _fallback_vector(text)
-        return model.encode(text, convert_to_numpy=True).tolist()
-    return _fallback_vector(text)
+    model = _get_model()
+    if model is None:
+        return _fallback_vector(text)
+    return model.encode(text, convert_to_numpy=True).tolist()
 
 
 def embed_batch(texts: List[str]) -> List[List[float]]:
@@ -85,20 +82,22 @@ def embed_batch(texts: List[str]) -> List[List[float]]:
 
 def calculate_similarity(embedding1: List[float], embedding2: List[float]) -> float:
     """Calculate cosine similarity between two embeddings."""
-    if not embedding1 or not embedding2:
-        return 0.0
-    
-    # Convert to numpy arrays if they aren't already
     import numpy as np
-    vec1 = np.array(embedding1)
-    vec2 = np.array(embedding2)
-    
-    # Calculate cosine similarity
+
+    if embedding1 is None or embedding2 is None:
+        return 0.0
+
+    vec1 = np.asarray(embedding1, dtype=float)
+    vec2 = np.asarray(embedding2, dtype=float)
+
+    if vec1.size == 0 or vec2.size == 0 or vec1.shape != vec2.shape:
+        return 0.0
+
     dot_product = np.dot(vec1, vec2)
     norm1 = np.linalg.norm(vec1)
     norm2 = np.linalg.norm(vec2)
-    
+
     if norm1 == 0 or norm2 == 0:
         return 0.0
-    
+
     return float(dot_product / (norm1 * norm2))

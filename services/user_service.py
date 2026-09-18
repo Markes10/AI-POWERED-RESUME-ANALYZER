@@ -1,9 +1,9 @@
 """
 User service for handling user-related operations
 """
-from .typing import Dict, List, Optional
-from .werkzeug.security import generate_password_hash, check_password_hash
-from .db.database import DatabaseOperations
+from typing import Dict, List, Optional
+from werkzeug.security import generate_password_hash, check_password_hash
+from db.database import DatabaseOperations
 
 class UserService(DatabaseOperations):
     def __init__(self):

@@ -10,7 +10,7 @@ from pydantic import BaseModel
 from typing import List, Dict, Any
 import random
 import datetime
-from app.services import anomaly_utils
+from services import anomaly_utils
 
 router = APIRouter(prefix="/attendance", tags=["Attendance Anomaly Detector"])
 

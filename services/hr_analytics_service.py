@@ -1,10 +1,16 @@
-from .typing import List, Dict, Any
+from typing import List, Dict, Any
 import pandas as pd
 import numpy as np
-from .sklearn.ensemble import RandomForestRegressor, RandomForestClassifier
-from .sklearn.preprocessing import StandardScaler
-from .prophet import Prophet
-import shap
+from sklearn.ensemble import RandomForestRegressor, RandomForestClassifier
+from sklearn.preprocessing import StandardScaler
+try:
+    from prophet import Prophet
+except ImportError:
+    Prophet = None
+try:
+    import shap
+except ImportError:
+    shap = None
 
 class HRAnalyticsService:
     """

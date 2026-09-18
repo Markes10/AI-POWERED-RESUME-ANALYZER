@@ -11,7 +11,7 @@ from pydantic import BaseModel
 from typing import Dict, Any, List
 import datetime
 import random
-from app.services import churn_model
+from services import churn_model
 
 router = APIRouter(prefix="/turnover", tags=["Predictive Turnover & Retention Bot"])
 

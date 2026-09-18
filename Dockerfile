@@ -1,24 +1,61 @@
-FROM python:3.11-slim
+# Multi-stage Dockerfile for HR AI Platform
+# Build stage for Python dependencies
+FROM python:3.11-slim AS python-builder
 
 WORKDIR /app
 
-# Install system dependencies
-RUN apt-get update && apt-get install -y \
+RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc \
+    python3-dev \
+    libpq-dev \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy requirements and install Python dependencies
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir --user -r requirements.txt
 
-# Copy application code
+# Build stage for Node.js frontend
+FROM node:20-alpine AS frontend-builder
+
+WORKDIR /app
+
+RUN npm install -g pnpm@10
+
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+COPY client/ ./client/
+COPY shared/ ./shared/
+
+RUN pnpm install --frozen-lockfile
+RUN pnpm run build:client
+
+# Runtime stage
+FROM python:3.11-slim AS runtime
+
+WORKDIR /app
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    tesseract-ocr \
+    libgl1-mesa-glx \
+    libglib2.0-0 \
+    libpq5 \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY --from=python-builder /root/.local /root/.local
+
+COPY --from=frontend-builder /app/dist/spa ./static
+
 COPY . .
 
-# Create directories
 RUN mkdir -p uploads/resumes
 
-# Expose port
+RUN useradd --create-home --shell /bin/bash app \
+    && chown -R app:app /app
+USER app
+
+ENV PATH=/root/.local/bin:$PATH
+
 EXPOSE 8000
 
-# Run database initialization and start the app
-CMD ["sh", "-c", "python scripts/init_database.py && uvicorn main:app --host 0.0.0.0 --port 8000"]
+HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
+    CMD curl -f http://localhost:8000/health || exit 1
+
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "4"]

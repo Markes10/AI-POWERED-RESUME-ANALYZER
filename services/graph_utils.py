@@ -5,7 +5,7 @@ Graph utilities for Learning Path Recommender.
 - Run simple graph queries
 """
 
-from .typing import List, Dict, Any
+from typing import List, Dict, Any
 import networkx as nx
 
 

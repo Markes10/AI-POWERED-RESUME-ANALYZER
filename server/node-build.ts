@@ -10,7 +10,7 @@ const __dirname = import.meta.dirname;
 const distPath = path.join(__dirname, "../spa");
 
 // Serve static files
-app.use(express.static(distPath));s
+app.use(express.static(distPath));
 
 // Handle React Router - serve index.html for all non-API routes
 app.get("*", (req, res) => {

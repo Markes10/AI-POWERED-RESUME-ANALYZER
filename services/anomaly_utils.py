@@ -6,10 +6,10 @@ Anomaly detection utilities for Attendance Anomaly Detector.
 """
 
 import numpy as np
-from .typing import List, Dict, Any
+from typing import List, Dict, Any
 
 try:
-    from .pyod.models.iforest import IForest
+    from pyod.models.iforest import IForest
     _pyod_available = True
 except ImportError:
     _pyod_available = False

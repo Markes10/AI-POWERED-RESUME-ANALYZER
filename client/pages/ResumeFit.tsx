@@ -18,10 +18,14 @@ import {
   TrendingUp,
   Award,
   Users,
-  Clock
+  Clock,
+  Download,
+  Save
 } from "lucide-react";
 import { analyzeResume, uploadVoice, suggestImprovements } from "@/services/resume";
 import { AnalysisResult, JobMatch } from "@/types/resume";
+import { exportToPDF } from "@/lib/pdfExport";
+import { useToast } from "@/hooks/use-toast";
 
 export default function ResumeFit() {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
@@ -37,6 +41,33 @@ export default function ResumeFit() {
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const [audioURL, setAudioURL] = useState<string | null>(null);
+  const { toast } = useToast();
+
+  const handleSaveReport = () => {
+    if (!analysisResult || !apiResult) return;
+    // Save to localStorage or backend
+    const reportData = {
+      analysisResult,
+      apiResult,
+      jobDescription,
+      resumeFileName: resumeFile?.name || null,
+      timestamp: new Date().toISOString(),
+    };
+    const saved = JSON.parse(localStorage.getItem('savedReports') || '[]');
+    saved.push(reportData);
+    localStorage.setItem('savedReports', JSON.stringify(saved));
+    toast({ title: "Report saved", description: "Analysis report has been saved locally" });
+  };
+
+  const handleExportPDF = () => {
+    if (!analysisResult || !apiResult) return;
+    exportToPDF({
+      analysisResult,
+      apiResult,
+      jobDescription,
+      resumeFileName: resumeFile?.name || null,
+    });
+  };
 
   const handleAnalyze = async () => {
     if (!resumeFile && !jobDescription) return;
@@ -716,10 +747,12 @@ export default function ResumeFit() {
             <Button onClick={() => setShowResults(false)} variant="outline">
               New Analysis
             </Button>
-            <Button>
+            <Button onClick={handleSaveReport}>
+              <Save className="h-4 w-4 mr-2" />
               Save Report
             </Button>
-            <Button variant="outline">
+            <Button variant="outline" onClick={handleExportPDF}>
+              <Download className="h-4 w-4 mr-2" />
               Export PDF
             </Button>
           </div>

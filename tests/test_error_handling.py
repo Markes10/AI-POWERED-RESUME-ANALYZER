@@ -2,9 +2,9 @@
 Tests for error handling middleware
 """
 import pytest
-from .fastapi.testclient import TestClient
-from ..main import app
-from ..middleware.error_handling import (
+from fastapi.testclient import TestClient
+from main import app
+from middleware.error_handling import (
     AuthError,
     PermissionError,
     NotFoundError,

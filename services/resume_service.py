@@ -11,8 +11,15 @@ class ResumeService(DatabaseOperations):
     def __init__(self):
         super().__init__('resumes')
 
-    def create_resume(self, user_id: int, resume_text: str) -> Dict:
+    def create_resume(self, user_id: int, tenant_id: int, resume_text: str) -> Dict:
         """Create a new resume entry"""
+        if user_id is None:
+            raise ValueError("user_id is required")
+        if tenant_id is None:
+            raise ValueError("tenant_id is required")
+        if not resume_text or not resume_text.strip():
+            raise ValueError("resume_text is required")
+
         # Extract skills and generate embedding
         try:
             lang = detect_language(resume_text)
@@ -27,6 +34,7 @@ class ResumeService(DatabaseOperations):
         
         # Prepare data for insertion
         data = {
+            'tenant_id': tenant_id,
             'user_id': user_id,
             'resume_text': resume_text,
             'skills': skills,
@@ -38,10 +46,10 @@ class ResumeService(DatabaseOperations):
         result = self.get_by_id(resume_id)
         return result if result else {}
 
-    def get_user_resumes(self, user_id: int) -> List[Dict]:
+    def get_user_resumes(self, user_id: int, tenant_id: int) -> List[Dict]:
         """Get all resumes for a user"""
-        query = "SELECT * FROM resumes WHERE user_id = %s"
-        return self.execute_query(query, (user_id,))
+        query = "SELECT * FROM resumes WHERE user_id = %s AND tenant_id = %s"
+        return self.execute_query(query, (user_id, tenant_id))
 
     def match_jobs(self, resume_id: int, top_k: int = 3) -> List[Dict]:
         """Match resume with available jobs"""
@@ -74,6 +82,7 @@ class ResumeService(DatabaseOperations):
             
             # Store match in database
             match_data = {
+                'tenant_id': resume.get('tenant_id'),
                 'job_id': job['id'],
                 'resume_id': resume_id,
                 'match_score': similarity,
@@ -89,8 +98,8 @@ class ResumeService(DatabaseOperations):
                 'missing_skills': list(job_skills - resume_skills)
             })
         
-        # Sort matches by score
-        matches.sort(key=lambda x: x['match_score'], reverse=True)
+        # Sort matches by score, with newest jobs first when scores tie.
+        matches.sort(key=lambda x: (x['match_score'], x['job']['id']), reverse=True)
         return matches[:top_k]
 
 resume_service = ResumeService()

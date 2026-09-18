@@ -1,21 +1,35 @@
 import { useState } from "react";
-import { Link, useLocation } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
-import { 
-  Brain, 
-  TrendingDown, 
-  MessageSquare, 
-  GraduationCap, 
-  FileText, 
-  DollarSign, 
-  BookOpen, 
-  Calendar, 
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import {
+  Brain,
+  TrendingDown,
+  MessageSquare,
+  GraduationCap,
+  FileText,
+  DollarSign,
+  BookOpen,
+  Calendar,
   Users,
   Menu,
-  Sparkles
+  Sparkles,
+  LogOut,
+  User,
+  Settings,
+  Shield,
 } from "lucide-react";
+import { useAuth } from "@/context/AuthContext";
 
 const navigationItems = [
   {
@@ -70,26 +84,36 @@ const navigationItems = [
   },
 ];
 
+const adminNavigationItems = [
+  {
+    name: "Admin: Role Predictor",
+    href: "/admin/role-predictor",
+    icon: Shield,
+  },
+];
+
 interface LayoutProps {
   children: React.ReactNode;
 }
 
-function Navigation() {
+function Navigation({ isAdmin }: { isAdmin: boolean }) {
   const location = useLocation();
+
+  const items = [...navigationItems, ...(isAdmin ? adminNavigationItems : [])];
 
   return (
     <nav className="space-y-2">
-      {navigationItems.map((item) => {
+      {items.map((item) => {
         const Icon = item.icon;
         const isActive = location.pathname === item.href;
-        
+
         return (
           <Link
             key={item.href}
             to={item.href}
             className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-all hover:bg-secondary ${
-              isActive 
-                ? "bg-primary text-primary-foreground" 
+              isActive
+                ? "bg-primary text-primary-foreground"
                 : "text-muted-foreground hover:text-foreground"
             }`}
           >
@@ -104,6 +128,14 @@ function Navigation() {
 
 export default function Layout({ children }: LayoutProps) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const { user, logout, isAuthenticated } = useAuth();
+  const navigate = useNavigate();
+  const isAdmin = user?.role === 'admin';
+
+  const handleLogout = () => {
+    logout();
+    navigate("/login");
+  };
 
   return (
     <div className="flex h-screen bg-background">
@@ -120,14 +152,55 @@ export default function Layout({ children }: LayoutProps) {
             </div>
           </div>
           <ScrollArea className="flex-1 p-4">
-            <Navigation />
+            <Navigation isAdmin={isAdmin} />
           </ScrollArea>
+          {isAuthenticated && (
+            <div className="p-4 border-t">
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" className="w-full justify-start gap-3 h-auto px-3 py-2">
+                    <Avatar className="h-8 w-8">
+                      <AvatarImage src={`https://ui-avatars.com/api/?name=${encodeURIComponent(user?.username || 'User')}&background=random`} />
+                      <AvatarFallback>{user?.username?.[0].toUpperCase() || 'U'}</AvatarFallback>
+                    </Avatar>
+                    <div className="text-left flex-1">
+                      <p className="text-sm font-medium truncate">{user?.username}</p>
+                      <p className="text-xs text-muted-foreground truncate capitalize">{user?.role}</p>
+                    </div>
+                    <Settings className="h-4 w-4 text-muted-foreground" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent className="w-56" align="end" forceMount>
+                  <DropdownMenuLabel className="font-normal">
+                    <div className="flex flex-col space-y-1">
+                      <p className="text-sm font-medium leading-none">{user?.username}</p>
+                      <p className="text-xs leading-none text-muted-foreground">{user?.email}</p>
+                    </div>
+                  </DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={() => navigate("/resume-fit")}>
+                    <User className="mr-2 h-4 w-4" />
+                    My Resumes
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => navigate("/resume-ranking")}>
+                    <FileText className="mr-2 h-4 w-4" />
+                    Resume Ranking
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={handleLogout} className="text-destructive focus:text-destructive">
+                    <LogOut className="mr-2 h-4 w-4" />
+                    Log out
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+          )}
         </div>
       </div>
 
       {/* Mobile Header */}
       <div className="md:hidden">
-        <div className="flex items-center gap-2 h-16 px-4 border-b bg-background">
+        <div className="flex items-center justify-between h-16 px-4 border-b bg-background">
           <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
             <SheetTrigger asChild>
               <Button variant="ghost" size="icon">
@@ -145,7 +218,7 @@ export default function Layout({ children }: LayoutProps) {
                 </div>
               </div>
               <ScrollArea className="flex-1 p-4">
-                <Navigation />
+                <Navigation isAdmin={isAdmin} />
               </ScrollArea>
             </SheetContent>
           </Sheet>

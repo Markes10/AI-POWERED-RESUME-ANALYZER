@@ -1,13 +1,9 @@
 """
 Routes initialization
-Import and collect all route handlers
+Import and collect all route handlers from the top-level routes package
 """
 from fastapi import APIRouter
 
-# Initialize an empty list to store all routers
-ALL_ROUTERS = []
+from routes import ALL_ROUTERS
 
-# Import and add route handlers
-# Example:
-# from .auth import router as auth_router
-# ALL_ROUTERS.append(auth_router)
+__all__ = ["ALL_ROUTERS"]

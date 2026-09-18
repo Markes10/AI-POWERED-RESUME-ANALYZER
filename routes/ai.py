@@ -1,10 +1,11 @@
 from fastapi import APIRouter, HTTPException, Depends
 from typing import List, Dict, Any
-from app.services.ai_feedback_service import AIFeedbackService
-from app.services.hr_analytics_service import HRAnalyticsService
-from app.services.nlp_service import NLPService
+from services.ai_feedback_service import AIFeedbackService
+from services.hr_analytics_service import HRAnalyticsService
+from services.nlp_service import NLPService
 
-router = APIRouter(prefix="/api/ai")
+router = APIRouter(prefix="/ai", tags=["AI Services"])
+
 
 # Initialize services
 ai_feedback_service = AIFeedbackService()
@@ -72,7 +73,7 @@ async def analyze_sentiment(text: str) -> Dict[str, Any]:
 
 @router.post("/extract-entities")
 async def extract_entities(text: str) -> List[Dict[str, Any]]:
-    """Extract named entities from .text"""
+    """Extract named entities from text"""
     try:
         return nlp_service.extract_entities(text)
     except Exception as e:

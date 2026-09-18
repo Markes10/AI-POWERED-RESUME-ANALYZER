@@ -6,12 +6,12 @@ Recommender utilities for Learning Path Recommender.
 """
 
 import os
-from .typing import List, Dict, Any
+from typing import List, Dict, Any
 import numpy as np
 
 try:
-    from .lightfm import LightFM
-    from .lightfm.data import Dataset
+    from lightfm import LightFM
+    from lightfm.data import Dataset
     _lightfm_available = True
 except ImportError:
     _lightfm_available = False

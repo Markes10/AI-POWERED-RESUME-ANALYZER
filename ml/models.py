@@ -1,8 +1,8 @@
-from .sklearn.base import BaseEstimator, TransformerMixin
-from .typing import List, Dict, Any
+from sklearn.base import BaseEstimator, TransformerMixin
+from typing import List, Dict, Any
 import numpy as np
 import pandas as pd
-from .datetime import datetime
+from datetime import datetime
 
 class EmployeeDataPreprocessor(BaseEstimator, TransformerMixin):
     """

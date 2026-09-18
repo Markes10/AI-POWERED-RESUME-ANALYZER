@@ -21,7 +21,7 @@ try:
 
 import os
 import io
-from .typing import Dict, Any
+from typing import Dict, Any
 
 # Whisper
 try:

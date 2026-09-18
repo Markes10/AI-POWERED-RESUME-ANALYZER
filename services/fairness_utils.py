@@ -8,18 +8,17 @@ Features:
 - Intersectional fairness analysis
 - Longitudinal trend analysis
 """
-from .__future__ import annotations
+from __future__ import annotations
 
-from .typing import List, Dict, Any, Tuple, Optional
+from typing import List, Dict, Any, Tuple, Optional
 import numpy as np
-from .scipy import stats
+from scipy import stats
 import warnings
-from .datetime import datetime, timedelta
+from datetime import datetime, timedelta
 
-# Heavy optional dependencies (lazy-imported)
 try:
-    from .sklearn.linear_model import LinearRegression
-    from .sklearn.metrics import r2_score
+    from sklearn.linear_model import LinearRegression
+    from sklearn.metrics import r2_score
     _sklearn_available = True
 except Exception:
     LinearRegression = None
@@ -34,7 +33,7 @@ except Exception:
     _pandas_available = False
 
 try:
-    from .fairlearn.metrics import (
+    from fairlearn.metrics import (
         MetricFrame,
         selection_rate,
         demographic_parity_difference,
@@ -42,7 +41,7 @@ try:
         true_positive_rate,
         false_positive_rate
     )
-    from .fairlearn.reductions import ExponentiatedGradient, DemographicParity
+    from fairlearn.reductions import ExponentiatedGradient, DemographicParity
     _fairlearn_available = True
 except ImportError:
     _fairlearn_available = False
@@ -780,13 +779,13 @@ def analyze_model_fairness(
     
     # 1. Model Performance Analysis
     if model_type == "classification":
-        from .sklearn.metrics import classification_report
+        from sklearn.metrics import classification_report
         y_pred = model.predict(X_test)
         results["model_performance"] = {
             "classification_report": classification_report(y_test, y_pred, output_dict=True)
         }
     else:
-        from .sklearn.metrics import r2_score, mean_squared_error
+        from sklearn.metrics import r2_score, mean_squared_error
         y_pred = model.predict(X_test)
         results["model_performance"] = {
             "r2_score": float(r2_score(y_test, y_pred)),
@@ -1022,7 +1021,7 @@ def analyze_causal_fairness(
     """
     try:
         import dowhy
-        from .dowhy import CausalModel
+        from dowhy import CausalModel
         import econml
         from econml.dml import CausalForestDML
         _causal_tools_available = True
@@ -1138,7 +1137,7 @@ def analyze_model_robustness(
     """
     try:
         from art.estimators.classification import SklearnClassifier
-        from .art.attacks.evasion import FastGradientMethod
+        from art.attacks.evasion import FastGradientMethod
         import captum.attr as captum
         _robustness_tools_available = True
     except ImportError:
@@ -1245,18 +1244,18 @@ def setup_fairness_monitoring(
         except ImportError:
             wandb = None
             _wandb_available = False
-        from .evidently.dashboard import Dashboard
-        from .evidently.dashboard.tabs import (
+        from evidently.dashboard import Dashboard
+        from evidently.dashboard.tabs import (
             DataDriftTab, CatTargetDriftTab, RegressionPerformanceTab,
             ClassificationPerformanceTab, ProbClassificationPerformanceTab
         )
-        from .deepchecks.tabular import Dataset, Suite
-        from .deepchecks.tabular.checks import (
+        from deepchecks.tabular import Dataset, Suite
+        from deepchecks.tabular.checks import (
             WholeDatasetDrift, TrainTestFeatureDrift,
             FeatureAttributionDrift, ConceptDrift
         )
         import great_expectations as ge
-        from .datetime import datetime, timedelta
+        from datetime import datetime, timedelta
         import logging
         _monitoring_tools_available = True
     except ImportError:
@@ -1412,27 +1411,27 @@ def monitor_fairness_metrics(
     try:
         import mlflow
         import wandb
-        from .evidently.dashboard import Dashboard
-        from .evidently.dashboard.tabs import (
+        from evidently.dashboard import Dashboard
+        from evidently.dashboard.tabs import (
             DataDriftTab, CatTargetDriftTab, RegressionPerformanceTab,
             ClassificationPerformanceTab, ProbClassificationPerformanceTab,
             DataQualityTab
         )
-        from .deepchecks.tabular import Dataset, Suite
-        from .deepchecks.tabular.checks import (
+        from deepchecks.tabular import Dataset, Suite
+        from deepchecks.tabular.checks import (
             WholeDatasetDrift, TrainTestFeatureDrift,
             FeatureAttributionDrift, ConceptDrift,
             FeatureDrift, LabelDrift
         )
         import great_expectations as ge
-        from .river import drift
+        from river import drift
         import numpy as np
         import pandas as pd
-        from .datetime import datetime
+        from datetime import datetime
         import json
         import logging
         import requests
-        from .typing import Dict, List, Any, Optional
+        from typing import Dict, List, Any, Optional
         _monitoring_tools_available = True
     except ImportError:
         _monitoring_tools_available = False
@@ -1807,7 +1806,7 @@ def analyze_demographic_fairness(
         protected_attributes: List of protected attributes to analyze
     """
     try:
-        from .folktables import ACSDataSource, ACSEmployment
+        from folktables import ACSDataSource, ACSEmployment
         _folktables_available = True
     except ImportError:
         _folktables_available = False
@@ -2042,7 +2041,7 @@ def create_fairness_visualizations(
     try:
         import plotly.graph_objs as go
         import plotly.express as px
-        from .plotly.subplots import make_subplots
+        from plotly.subplots import make_subplots
         _plotly_available = True
     except ImportError:
         _plotly_available = False

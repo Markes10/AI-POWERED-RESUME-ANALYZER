@@ -12,8 +12,8 @@ from jose.exceptions import ExpiredSignatureError
 from sqlalchemy.orm import Session
 from passlib.context import CryptContext
 
-from app.db.models import User
-from app.db.database import get_db
+from db.models import User
+from db.database import get_db
 
 # Token settings (use environment variables in production)
 ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "60"))
@@ -61,9 +61,9 @@ def create_access_token(subject: Optional[str] = None, data: Optional[Dict[str, 
     return token
 
 
-def get_current_user(authorization: str = Header(None), db: Session = Depends(get_db)) -> Optional[User]:
+def _resolve_current_user(authorization: Optional[str], db: Session) -> Optional[User]:
     if not authorization:
-        raise HTTPException(status_code=HTTP_401_UNAUTHORIZED, detail="Missing Authorization header")
+        return None
     if not authorization.startswith("Bearer "):
         raise HTTPException(status_code=HTTP_401_UNAUTHORIZED, detail="Invalid token scheme")
     token = authorization.split(" ", 1)[1]
@@ -80,16 +80,26 @@ def get_current_user(authorization: str = Header(None), db: Session = Depends(ge
 
     try:
         user = db.query(User).filter(User.id == int(user_id)).first()
-        if not user:
-            # Explicitly raise instead of returning None so routes depending on
-            # a User object receive a proper HTTP 401/404 instead of causing
-            # a 500 when Pydantic attempts to serialize None to UserResponse.
-            raise HTTPException(status_code=HTTP_401_UNAUTHORIZED, detail="User not found")
-        return user
-    except Exception as e:
-        # For token validation flows we prefer returning 401 so callers
-        # that only validate token format do not receive 500s during tests.
-        raise HTTPException(status_code=HTTP_401_UNAUTHORIZED, detail="Failed to retrieve user")
+        if user:
+            return user
+    except Exception:
+        pass
+
+    user = db.query(User).filter(User.username == str(user_id)).first()
+    if not user:
+        raise HTTPException(status_code=HTTP_401_UNAUTHORIZED, detail="User not found")
+    return user
+
+
+def get_current_user(authorization: Optional[str] = Header(None), db: Session = Depends(get_db)) -> User:
+    user = _resolve_current_user(authorization, db)
+    if user is None:
+        raise HTTPException(status_code=HTTP_401_UNAUTHORIZED, detail="Missing Authorization header")
+    return user
+
+
+def get_current_user_optional(authorization: Optional[str] = Header(None), db: Session = Depends(get_db)) -> Optional[User]:
+    return _resolve_current_user(authorization, db)
 
 
 def allow_admin(current_user: User = Depends(get_current_user)):

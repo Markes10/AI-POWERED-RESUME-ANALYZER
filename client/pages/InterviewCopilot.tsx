@@ -1,4 +1,48 @@
-import { useState } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
+
+interface SpeechRecognition extends EventTarget {
+  continuous: boolean;
+  interimResults: boolean;
+  lang: string;
+  maxAlternatives: number;
+  onresult: (event: SpeechRecognitionEvent) => void;
+  onerror: (event: SpeechRecognitionErrorEvent) => void;
+  onend: () => void;
+  start: () => void;
+  stop: () => void;
+}
+
+interface SpeechRecognitionErrorEvent extends Event {
+  error: string;
+  message: string;
+}
+
+interface SpeechRecognitionEvent extends Event {
+  resultIndex: number;
+  results: SpeechRecognitionResultList;
+}
+
+interface SpeechRecognitionResultList {
+  length: number;
+  [index: number]: SpeechRecognitionResult;
+}
+
+interface SpeechRecognitionResult {
+  isFinal: boolean;
+  [index: number]: SpeechRecognitionAlternative;
+}
+
+interface SpeechRecognitionAlternative {
+  transcript: string;
+  confidence: number;
+}
+
+declare global {
+  interface Window {
+    SpeechRecognition: new () => SpeechRecognition;
+    webkitSpeechRecognition: new () => SpeechRecognition;
+  }
+}
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -26,8 +70,13 @@ import {
   Target,
   TrendingUp,
   FileText,
-  Star
+  Star,
+  Volume2,
+  VolumeX,
+  Waves,
+  Loader2
 } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
 
 interface Question {
   id: string;
@@ -53,6 +102,14 @@ interface InterviewSession {
   };
   biasAlerts: string[];
   recommendations: string[];
+}
+
+interface TranscriptEntry {
+  id: string;
+  speaker: "interviewer" | "candidate";
+  text: string;
+  timestamp: string;
+  confidence?: number;
 }
 
 const questionBank: Question[] = [
@@ -149,17 +206,163 @@ export default function InterviewCopilot() {
   const [sessionActive, setSessionActive] = useState(false);
   const [currentQuestion, setCurrentQuestion] = useState<Question | null>(null);
   const [questionIndex, setQuestionIndex] = useState(0);
+  const [transcript, setTranscript] = useState<TranscriptEntry[]>([]);
+  const [currentSpeaker, setCurrentSpeaker] = useState<"interviewer" | "candidate">("interviewer");
+  const [liveTranscript, setLiveTranscript] = useState("");
+  const [isTranscribing, setIsTranscribing] = useState(false);
+  const { toast } = useToast();
+
+  // Refs for speech recognition
+  const recognitionRef = useRef<SpeechRecognition | null>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
+  const interviewStartTimeRef = useRef<number>(0);
+
+  // Initialize Web Speech API
+  useEffect(() => {
+    if (typeof window !== "undefined" && ("SpeechRecognition" in window || "webkitSpeechRecognition" in window)) {
+      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+      recognitionRef.current = new SpeechRecognition();
+      recognitionRef.current.continuous = true;
+      recognitionRef.current.interimResults = true;
+      recognitionRef.current.lang = "en-US";
+      recognitionRef.current.maxAlternatives = 1;
+
+      recognitionRef.current.onresult = (event) => {
+        let interimTranscript = "";
+        let finalTranscript = "";
+
+        for (let i = event.resultIndex; i < event.results.length; i++) {
+          const transcript = event.results[i][0].transcript;
+          const confidence = event.results[i][0].confidence;
+          
+          if (event.results[i].isFinal) {
+            finalTranscript += transcript;
+          } else {
+            interimTranscript += transcript;
+          }
+        }
+
+        setLiveTranscript(interimTranscript || finalTranscript);
+
+        if (finalTranscript.trim()) {
+          addTranscriptEntry(finalTranscript.trim(), event.results[event.results.length - 1][0].confidence);
+        }
+      };
+
+      recognitionRef.current.onerror = (event) => {
+        console.error("Speech recognition error:", event.error);
+        if (event.error === "no-speech") {
+          // Ignore no-speech errors
+          return;
+        }
+        toast({
+          title: "Speech recognition error",
+          description: event.error,
+          variant: "destructive"
+        });
+        setIsRecording(false);
+        setIsTranscribing(false);
+      };
+
+      recognitionRef.current.onend = () => {
+        if (isRecording) {
+          // Restart if still recording
+          try {
+            recognitionRef.current?.start();
+          } catch (e) {
+            console.error("Failed to restart recognition:", e);
+          }
+        }
+      };
+    }
+
+    return () => {
+      recognitionRef.current?.stop();
+    };
+  }, [isRecording, toast]);
+
+  const addTranscriptEntry = useCallback((text: string, confidence?: number) => {
+    const entry: TranscriptEntry = {
+      id: Date.now().toString(),
+      speaker: currentSpeaker,
+      text,
+      timestamp: new Date().toISOString(),
+      confidence
+    };
+    setTranscript(prev => [...prev, entry]);
+    setLiveTranscript("");
+  }, [currentSpeaker]);
 
   const startInterview = () => {
     setSessionActive(true);
     setCurrentQuestion(questionBank[0]);
     setCurrentTab("interview");
+    interviewStartTimeRef.current = Date.now();
+    setTranscript([]);
   };
 
   const nextQuestion = () => {
     if (questionIndex < questionBank.length - 1) {
       setQuestionIndex(prev => prev + 1);
       setCurrentQuestion(questionBank[questionIndex + 1]);
+    }
+  };
+
+  const toggleRecording = async () => {
+    if (!isRecording) {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        
+        // Initialize MediaRecorder for audio recording
+        mediaRecorderRef.current = new MediaRecorder(stream);
+        audioChunksRef.current = [];
+        
+        mediaRecorderRef.current.ondataavailable = (event) => {
+          if (event.data.size > 0) {
+            audioChunksRef.current.push(event.data);
+          }
+        };
+
+        mediaRecorderRef.current.onstop = () => {
+          const audioBlob = new Blob(audioChunksRef.current, { type: "audio/webm" });
+          // Could upload audioBlob to server for backup/analysis
+          console.log("Audio recorded:", audioBlob.size, "bytes");
+        };
+
+        mediaRecorderRef.current.start(1000); // Collect data every second
+        
+        // Start speech recognition
+        if (recognitionRef.current) {
+          try {
+            recognitionRef.current.start();
+          } catch (e) {
+            console.error("Failed to start recognition:", e);
+          }
+        }
+        
+        setIsRecording(true);
+        setIsTranscribing(true);
+        toast({ title: "Recording started", description: "Live transcription active" });
+      } catch (error) {
+        console.error("Failed to start recording:", error);
+        toast({ title: "Microphone access denied", description: "Please allow microphone access", variant: "destructive" });
+      }
+    } else {
+      // Stop recording
+      if (recognitionRef.current) {
+        recognitionRef.current.stop();
+      }
+      if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
+        mediaRecorderRef.current.stop();
+      }
+      if (mediaRecorderRef.current?.stream) {
+        mediaRecorderRef.current.stream.getTracks().forEach(track => track.stop());
+      }
+      
+      setIsRecording(false);
+      setIsTranscribing(false);
+      toast({ title: "Recording stopped", description: "Transcription saved" });
     }
   };
 
@@ -178,6 +381,17 @@ export default function InterviewCopilot() {
     return "text-red-600";
   };
 
+  const formatTime = (ms: number) => {
+    const mins = Math.floor(ms / 60000);
+    const secs = Math.floor((ms % 60000) / 1000);
+    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  const getElapsedTime = () => {
+    if (!interviewStartTimeRef.current) return "00:00";
+    return formatTime(Date.now() - interviewStartTimeRef.current);
+  };
+
   return (
     <div className="container mx-auto p-6 space-y-6">
       {/* Header */}
@@ -187,7 +401,7 @@ export default function InterviewCopilot() {
         </div>
         <div>
           <h1 className="text-3xl font-bold">AI Interview Co-pilot</h1>
-          <p className="text-muted-foreground">Real-time AI assistance for conducting effective and unbiased interviews</p>
+          <p className="text-muted-foreground">Real-time AI assistance with live transcription for effective and unbiased interviews</p>
         </div>
       </div>
 
@@ -207,7 +421,7 @@ export default function InterviewCopilot() {
                 Interview Setup
               </CardTitle>
               <CardDescription>
-                Configure your interview session and let AI assist you throughout the process
+                Configure your interview session and let AI assist you throughout the process with live transcription
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
@@ -291,21 +505,32 @@ export default function InterviewCopilot() {
                 <CardHeader>
                   <div className="flex items-center justify-between">
                     <CardTitle className="flex items-center gap-2">
-                      <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse" />
+                      <div className={`w-3 h-3 rounded-full animate-pulse ${isRecording ? "bg-red-500" : "bg-green-500"}`} />
                       Live Interview Session
                     </CardTitle>
                     <div className="flex items-center gap-2">
                       <Button
-                        variant="outline"
+                        variant={isRecording ? "destructive" : "default"}
                         size="sm"
-                        onClick={() => setIsRecording(!isRecording)}
+                        onClick={toggleRecording}
+                        disabled={!sessionActive}
+                        className="flex items-center gap-2"
                       >
-                        {isRecording ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
-                        {isRecording ? "Stop Recording" : "Start Recording"}
+                        {isRecording ? (
+                          <>
+                            <MicOff className="h-4 w-4" />
+                            <span>Stop Recording</span>
+                          </>
+                        ) : (
+                          <>
+                            <Mic className="h-4 w-4" />
+                            <span>Start Recording</span>
+                          </>
+                        )}
                       </Button>
-                      <Badge variant="secondary">
-                        <Clock className="h-3 w-3 mr-1" />
-                        23:45
+                      <Badge variant="secondary" className="flex items-center gap-1">
+                        <Clock className="h-3 w-3" />
+                        {getElapsedTime()}
                       </Badge>
                     </div>
                   </div>
@@ -313,19 +538,89 @@ export default function InterviewCopilot() {
                 <CardContent className="space-y-4">
                   <div className="bg-muted/50 p-4 rounded-lg">
                     <div className="flex items-center justify-between mb-2">
-                      <span className="text-sm font-medium">Candidate: {mockSession.candidate}</span>
+                      <span className="text-sm font-medium">Candidate: {candidateName || mockSession.candidate}</span>
                       <Badge className={getDifficultyColor(currentQuestion?.difficulty || "Medium")}>
                         {currentQuestion?.difficulty}
                       </Badge>
                     </div>
                     <div className="text-lg font-medium mb-3">{currentQuestion?.question}</div>
                     <div className="flex gap-2">
-                      <Button size="sm" onClick={nextQuestion}>
+                      <Button size="sm" onClick={nextQuestion} disabled={!sessionActive}>
                         Next Question
                       </Button>
-                      <Button size="sm" variant="outline">
+                      <Button size="sm" variant="outline" disabled={!sessionActive}>
                         Skip Question
                       </Button>
+                    </div>
+                  </div>
+
+                  {/* Live Transcription */}
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <h4 className="text-sm font-medium flex items-center gap-2">
+                        {isTranscribing ? (
+                          <>
+                            <Waves className="h-4 w-4 animate-pulse text-red-500" />
+                            Live Transcription
+                          </>
+                        ) : (
+                          <>
+                            <FileText className="h-4 w-4" />
+                            Transcript
+                          </>
+                        )}
+                        <div className="flex items-center gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setCurrentSpeaker(s => s === "interviewer" ? "candidate" : "interviewer")}
+                            className="flex items-center gap-1"
+                          >
+                            {currentSpeaker === "interviewer" ? (
+                              <>
+                                <User className="h-3 w-3" />
+                                Interviewer
+                              </>
+                            ) : (
+                              <>
+                                <MessageSquare className="h-3 w-3" />
+                                Candidate
+                              </>
+                            )}
+                          </Button>
+                          {isTranscribing && (
+                            <span className="text-xs text-red-500 animate-pulse">● LIVE</span>
+                          )}
+                        </div>
+                      </h4>
+                    </div>
+                    
+                    {/* Live interim transcript */}
+                    {liveTranscript && (
+                      <div className="p-3 bg-yellow-50 rounded border-l-2 border-yellow-300 text-sm text-yellow-800 italic">
+                        {liveTranscript}
+                      </div>
+                    )}
+                    
+                    {/* Full transcript */}
+                    <div className="max-h-96 overflow-y-auto space-y-2">
+                      {transcript.map((entry) => (
+                        <div key={entry.id} className="flex gap-2 text-sm p-2 bg-muted/30 rounded">
+                          <span className="font-medium text-primary flex-shrink-0">
+                            {entry.speaker === "interviewer" ? "🎤 Interviewer:" : "👤 Candidate:"}
+                          </span>
+                          <span>{entry.text}</span>
+                          <span className="text-xs text-muted-foreground flex-shrink-0">
+                            {new Date(entry.timestamp).toLocaleTimeString()}
+                            {entry.confidence && ` (${Math.round(entry.confidence * 100)}%)`}
+                          </span>
+                        </div>
+                      ))}
+                      {transcript.length === 0 && (
+                        <div className="text-center text-muted-foreground py-8">
+                          {isTranscribing ? "Listening..." : "Start recording to capture transcript"}
+                        </div>
+                      )}
                     </div>
                   </div>
 
@@ -411,9 +706,9 @@ export default function InterviewCopilot() {
                         {alert}
                       </div>
                     ))}
-                  </div>
-                </CardContent>
-              </Card>
+</div>
+                  </CardContent>
+                </Card>
 
               {/* Quick Actions */}
               <Card>
@@ -432,6 +727,19 @@ export default function InterviewCopilot() {
                   <Button variant="outline" size="sm" className="w-full justify-start">
                     <Target className="h-4 w-4 mr-2" />
                     Red Flag
+                  </Button>
+                  <Button variant="outline" size="sm" className="w-full justify-start" onClick={() => {
+                    // Export transcript
+                    const blob = new Blob([JSON.stringify(transcript, null, 2)], { type: "application/json" });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement("a");
+                    a.href = url;
+                    a.download = `transcript-${candidateName}-${Date.now()}.json`;
+                    a.click();
+                    URL.revokeObjectURL(url);
+                  }}>
+                    <FileText className="h-4 w-4 mr-2" />
+                    Export Transcript
                   </Button>
                 </CardContent>
               </Card>
@@ -513,9 +821,50 @@ export default function InterviewCopilot() {
                 </div>
               </div>
 
+              {/* Transcript Summary */}
+              {transcript.length > 0 && (
+                <div>
+                  <Separator />
+                  <h4 className="font-semibold mb-3 flex items-center gap-2">
+                    <FileText className="h-4 w-4" />
+                    Interview Transcript Summary
+                  </h4>
+                  <div className="space-y-2 max-h-64 overflow-y-auto">
+                    {transcript.map((entry) => (
+                      <div key={entry.id} className="text-sm p-2 bg-muted/30 rounded">
+                        <span className="font-medium text-primary">
+                          {entry.speaker === "interviewer" ? "Interviewer: " : "Candidate: "}
+                        </span>
+                        <span>{entry.text}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               {/* Action Buttons */}
               <div className="flex gap-4 justify-center pt-4">
-                <Button>
+                <Button onClick={() => {
+                  // Generate full report with transcript
+                  const report = {
+                    candidate: candidateName,
+                    role: selectedRole,
+                    date: new Date().toISOString(),
+                    duration: getElapsedTime(),
+                    score: mockSession.overallScore,
+                    categories: mockSession.categories,
+                    biasAlerts: mockSession.biasAlerts,
+                    recommendations: mockSession.recommendations,
+                    transcript
+                  };
+                  const blob = new Blob([JSON.stringify(report, null, 2)], { type: "application/json" });
+                  const url = URL.createObjectURL(blob);
+                  const a = document.createElement("a");
+                  a.href = url;
+                  a.download = `interview-report-${candidateName}-${Date.now()}.json`;
+                  a.click();
+                  URL.revokeObjectURL(url);
+                }}>
                   <FileText className="h-4 w-4 mr-2" />
                   Generate Report
                 </Button>

@@ -7,7 +7,7 @@ automatically discovered by Alembic migrations and
 available when `Base.metadata.create_all()` is called.
 """
 
-from app.db.models import (
+from db.models import (
     User,
     Resume,
     Job,

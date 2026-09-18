@@ -1,5 +1,5 @@
-from .pydantic import BaseModel
-from .typing import List, Literal
+from pydantic import BaseModel
+from typing import List, Literal
 
 class LearningPathSchema(BaseModel):
     id: str
