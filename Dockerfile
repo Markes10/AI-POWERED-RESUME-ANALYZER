@@ -21,6 +21,7 @@ WORKDIR /app
 RUN npm install -g pnpm@10
 
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+COPY index.html vite.config.ts tsconfig.json tailwind.config.ts postcss.config.js ./
 COPY client/ ./client/
 COPY shared/ ./shared/
 
@@ -34,14 +35,15 @@ WORKDIR /app
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     tesseract-ocr \
-    libgl1-mesa-glx \
+    libgl1 \
     libglib2.0-0 \
     libpq5 \
+    curl \
     && rm -rf /var/lib/apt/lists/*
 
 COPY --from=python-builder /root/.local /root/.local
 
-COPY --from=frontend-builder /app/dist/spa ./static
+COPY --from=frontend-builder /app/dist ./static
 
 COPY . .
 
